@@ -1,12 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
+// 🔗 Google Sheet CSV
 const SHEETS_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vS9WM5BOiUeFg76DdRyjyje1IS5ECvL3zU1C0Hz0yvTfb3K1a1hQdbwnqjllezBoRB34tyRJM7vqyHU/pub?output=csv";
 
+// ⚙️ Settings
 const CSV_VALUE_INDEX = 0;
 const FIXED_APY = 0.04;
-const COINGECKO_PRICE_URL =
-  "https://api.coingecko.com/api/v3/simple/price?ids=ripple&vs_currencies=usd";
+
+// 💰 Primary + fallback price URLs
+const COINGECKO_PROXY_URL =
+  "https://api.allorigins.win/raw?url=" +
+  encodeURIComponent(
+    "https://api.coingecko.com/api/v3/simple/price?ids=ripple&vs_currencies=usd"
+  );
+
+const CRYPTOCOMPARE_URL =
+  "https://min-api.cryptocompare.com/data/price?fsym=XRP&tsyms=USD";
 
 function useCountUp(target, durationMs = 800) {
   const [value, setValue] = useState(0);
@@ -57,7 +67,7 @@ export default function App() {
   const [xrpUsd, setXrpUsd] = useState(null);
   const [priceErr, setPriceErr] = useState("");
 
-  // 🔁 Fetch CSV from Google Sheets every 60 seconds
+  // 🔁 Fetch CSV data every 60 seconds
   useEffect(() => {
     const fetchCsv = async () => {
       try {
@@ -66,14 +76,11 @@ export default function App() {
         });
         if (!res.ok) throw new Error(`Sheet HTTP ${res.status}`);
         const text = await res.text();
-        console.log("CSV response:", text); // 👀 See what’s coming from Google Sheets
+        console.log("CSV response:", text);
 
-        // Split rows and columns
         const rows = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
         const firstLine = rows[0] || "";
         const cols = firstLine.split(",");
-
-        // Grab the first numeric value (in A1)
         const cell = (cols[CSV_VALUE_INDEX] || "").replace(/[^0-9.\-]/g, "");
         const num = Number(cell);
 
@@ -90,19 +97,31 @@ export default function App() {
     };
 
     fetchCsv();
-    const id = setInterval(fetchCsv, 60_000); // refresh every minute
+    const id = setInterval(fetchCsv, 60_000);
     return () => clearInterval(id);
   }, []);
 
-  // 💵 Fetch XRP→USD live price
+  // 💵 Fetch XRP→USD live price (with fallback)
   useEffect(() => {
     const getPrice = async () => {
       try {
-        const res = await fetch(COINGECKO_PRICE_URL, { cache: "no-store" });
-        if (!res.ok) throw new Error(`Price HTTP ${res.status}`);
-        const data = await res.json();
-        const usd = data?.ripple?.usd;
-        if (!usd) throw new Error("No USD price returned.");
+        // Try CoinGecko (via proxy)
+        let res = await fetch(COINGECKO_PROXY_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+        let data = await res.json();
+        let usd = data?.ripple?.usd;
+
+        // Fallback to CryptoCompare if CoinGecko fails
+        if (!usd) {
+          console.warn("CoinGecko failed, trying CryptoCompare...");
+          res = await fetch(CRYPTOCOMPARE_URL, { cache: "no-store" });
+          if (!res.ok) throw new Error(`CryptoCompare HTTP ${res.status}`);
+          data = await res.json();
+          usd = data?.USD;
+        }
+
+        if (!usd) throw new Error("No USD price returned from any source.");
+
         setXrpUsd(Number(usd));
         setPriceErr("");
       } catch (e) {
@@ -113,11 +132,11 @@ export default function App() {
     };
 
     getPrice();
-    const id = setInterval(getPrice, 60_000); // refresh price every minute
+    const id = setInterval(getPrice, 60_000);
     return () => clearInterval(id);
   }, []);
 
-  // 🧮 Derived calculations
+  // 🧮 Calculations
   const annualYieldXrp = useMemo(
     () => (poolXrpRaw ? poolXrpRaw * FIXED_APY : 0),
     [poolXrpRaw]
@@ -126,9 +145,11 @@ export default function App() {
     () => annualYieldXrp / 12,
     [annualYieldXrp]
   );
+
   const animatedPool = useCountUp(poolXrpRaw || 0);
   const animatedYear = useCountUp(annualYieldXrp || 0);
   const animatedMonth = useCountUp(monthlyYieldXrp || 0);
+
   const poolUsd = useMemo(
     () => (xrpUsd && poolXrpRaw ? poolXrpRaw * xrpUsd : null),
     [xrpUsd, poolXrpRaw]
