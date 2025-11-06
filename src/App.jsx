@@ -11,10 +11,10 @@ const FIXED_APY = 0.04;
 // 💰 CORS-safe proxy endpoints
 const COINGECKO_PROXY = `https://api.allorigins.win/get?url=${encodeURIComponent(
   "https://api.coingecko.com/api/v3/simple/price?ids=ripple&vs_currencies=usd"
-) )}`;
+)}`;
 const CRYPTOCOMPARE_PROXY = `https://api.allorigins.win/get?url=${encodeURIComponent(
   "https://min-api.cryptocompare.com/data/price?fsym=XRP&tsyms=USD"
-) )}`;
+)}`;
 
 function useCountUp(target, durationMs = 800) {
   const [value, setValue] = useState(0);
@@ -65,7 +65,7 @@ export default function App() {
   const [xrpUsd, setXrpUsd] = useState(null);
   const [priceErr, setPriceErr] = useState("");
 
-  // 🔁 Fetch CSV data every 60 s
+  // 🔁 Fetch CSV data every 60 seconds
   useEffect(() => {
     const fetchCsv = async () => {
       try {
@@ -98,7 +98,7 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // 💵 Fetch XRP→USD live price through proxy (always browser-safe)
+  // 💵 Fetch XRP→USD live price through proxy (CORS-safe)
   useEffect(() => {
     const getPrice = async () => {
       try {
@@ -282,5 +282,6 @@ export default function App() {
     </div>
   );
 }
+
 
 
