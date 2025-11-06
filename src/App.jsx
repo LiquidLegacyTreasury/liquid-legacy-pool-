@@ -8,10 +8,13 @@ const SHEETS_CSV_URL =
 const CSV_VALUE_INDEX = 0;
 const FIXED_APY = 0.04;
 
-// 💰 RippleFox + fallback
-const RIPPLEFOX_URL = "https://api.ripplefox.com/v1/ticker/xrpusd";
-const CRYPTOCOMPARE_URL =
-  "https://min-api.cryptocompare.com/data/price?fsym=XRP&tsyms=USD";
+// 💰 CORS-safe proxy endpoints
+const COINGECKO_PROXY = `https://api.allorigins.win/get?url=${encodeURIComponent(
+  "https://api.coingecko.com/api/v3/simple/price?ids=ripple&vs_currencies=usd"
+) )}`;
+const CRYPTOCOMPARE_PROXY = `https://api.allorigins.win/get?url=${encodeURIComponent(
+  "https://min-api.cryptocompare.com/data/price?fsym=XRP&tsyms=USD"
+) )}`;
 
 function useCountUp(target, durationMs = 800) {
   const [value, setValue] = useState(0);
@@ -62,7 +65,7 @@ export default function App() {
   const [xrpUsd, setXrpUsd] = useState(null);
   const [priceErr, setPriceErr] = useState("");
 
-  // 🔁 Fetch CSV data every 60 seconds
+  // 🔁 Fetch CSV data every 60 s
   useEffect(() => {
     const fetchCsv = async () => {
       try {
@@ -78,9 +81,8 @@ export default function App() {
         const cols = firstLine.split(",");
         const cell = (cols[CSV_VALUE_INDEX] || "").replace(/[^0-9.\-]/g, "");
         const num = Number(cell);
-
         if (!Number.isFinite(num))
-          throw new Error("Could not parse a numeric XRP amount.");
+          throw new Error("Could not parse numeric XRP amount.");
 
         setPoolXrpRaw(num);
         setSheetError("");
@@ -96,26 +98,27 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // 💵 Fetch XRP→USD live price (RippleFox + fallback)
+  // 💵 Fetch XRP→USD live price through proxy (always browser-safe)
   useEffect(() => {
     const getPrice = async () => {
       try {
-        // Primary: RippleFox
-        let res = await fetch(RIPPLEFOX_URL, { cache: "no-store" });
-        if (!res.ok) throw new Error(`RippleFox HTTP ${res.status}`);
-        let data = await res.json();
-        let usd = Number(data?.price);
+        let res = await fetch(COINGECKO_PROXY, { cache: "no-store" });
+        if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+        const wrapper = await res.json();
+        const data = JSON.parse(wrapper.contents);
+        let usd = data?.ripple?.usd;
 
-        // Fallback to CryptoCompare
-        if (!usd || isNaN(usd)) {
-          console.warn("RippleFox failed, trying CryptoCompare...");
-          res = await fetch(CRYPTOCOMPARE_URL, { cache: "no-store" });
-          if (!res.ok) throw new Error(`CryptoCompare HTTP ${res.status}`);
-          data = await res.json();
-          usd = data?.USD;
+        // fallback
+        if (!usd) {
+          console.warn("CoinGecko failed, trying CryptoCompare...");
+          res = await fetch(CRYPTOCOMPARE_PROXY, { cache: "no-store" });
+          if (!res.ok) throw new Error(`Proxy fallback HTTP ${res.status}`);
+          const wrapper2 = await res.json();
+          const data2 = JSON.parse(wrapper2.contents);
+          usd = data2?.USD;
         }
 
-        if (!usd) throw new Error("No USD price returned from any source.");
+        if (!usd) throw new Error("No USD price returned.");
         setXrpUsd(Number(usd));
         setPriceErr("");
       } catch (e) {
@@ -130,7 +133,7 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // 🧮 Calculations
+  // 🧮 Derived values
   const annualYieldXrp = useMemo(
     () => (poolXrpRaw ? poolXrpRaw * FIXED_APY : 0),
     [poolXrpRaw]
@@ -249,7 +252,7 @@ export default function App() {
         </section>
 
         <div className="mt-8 text-xs text-zinc-500">
-          * 4% APY simple calculation. For compounding: XRP × (1 + 0.04/12)^(12×years) − XRP.
+          * 4% APY simple calculation. For compounding: XRP × (1 + 0.04 / 12)^(12 × years) − XRP.
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
@@ -279,4 +282,5 @@ export default function App() {
     </div>
   );
 }
+
 
