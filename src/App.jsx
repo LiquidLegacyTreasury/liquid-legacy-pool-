@@ -1,17 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-// 🔗 Google Sheet CSV
 const SHEETS_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vS9WM5BOiUeFg76DdRyjyje1IS5ECvL3zU1C0Hz0yvTfb3K1a1hQdbwnqjllezBoRB34tyRJM7vqyHU/pub?output=csv";
 
-// ⚙️ Settings
 const CSV_VALUE_INDEX = 0;
 const FIXED_APY = 0.04;
 
-// 💰 Browser-safe proxies (CORS-friendly)
-const COINGECKO_PROXY =
-  "https://corsproxy.io/?https://api.coingecko.com/api/v3/simple/price?ids=ripple&vs_currencies=usd";
-const CRYPTOCOMPARE_PROXY =
+// use only CryptoCompare through corsproxy.io
+const PRICE_URL =
   "https://corsproxy.io/?https://min-api.cryptocompare.com/data/price?fsym=XRP&tsyms=USD";
 
 function useCountUp(target, durationMs = 800) {
@@ -63,7 +59,7 @@ export default function App() {
   const [xrpUsd, setXrpUsd] = useState(null);
   const [priceErr, setPriceErr] = useState("");
 
-  // 🔁 Fetch CSV data every 60 seconds
+  // load sheet
   useEffect(() => {
     const fetchCsv = async () => {
       try {
@@ -71,20 +67,16 @@ export default function App() {
         const res = await fetch(SHEETS_CSV_URL + "&t=" + Date.now(), {
           cache: "no-store",
         });
-        console.log("Sheet status:", res.status);
         if (!res.ok) throw new Error(`Sheet HTTP ${res.status}`);
         const text = await res.text();
-        console.log("Sheet text (first 200 chars):", text.slice(0, 200));
-
-        const rows = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+        console.log("Sheet text:", text.slice(0, 120));
+        const rows = text.split(/\r?\n/).filter((l) => l.trim());
         const firstLine = rows[0] || "";
         const cols = firstLine.split(",");
         const cell = (cols[CSV_VALUE_INDEX] || "").replace(/[^0-9.\-]/g, "");
         const num = Number(cell);
         if (!Number.isFinite(num))
           throw new Error("Could not parse numeric XRP amount.");
-
-        console.log("Parsed XRP amount:", num);
         setPoolXrpRaw(num);
         setSheetError("");
       } catch (e) {
@@ -93,37 +85,22 @@ export default function App() {
         setPoolXrpRaw(null);
       }
     };
-
     fetchCsv();
     const id = setInterval(fetchCsv, 60_000);
     return () => clearInterval(id);
   }, []);
 
-  // 💵 Fetch XRP→USD live price (corsproxy.io)
+  // load price
   useEffect(() => {
     const getPrice = async () => {
       try {
-        console.log("Fetching price...");
-        let res = await fetch(COINGECKO_PROXY, { cache: "no-store" });
-        console.log("CoinGecko status:", res.status);
-        if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+        console.log("Fetching price from CryptoCompare...");
+        const res = await fetch(PRICE_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`Price HTTP ${res.status}`);
         const data = await res.json();
-        console.log("CoinGecko raw data:", data);
-        let usd = data?.ripple?.usd;
-
-        // Fallback to CryptoCompare
-        if (!usd) {
-          console.warn("CoinGecko failed, trying CryptoCompare...");
-          res = await fetch(CRYPTOCOMPARE_PROXY, { cache: "no-store" });
-          console.log("CryptoCompare status:", res.status);
-          if (!res.ok) throw new Error(`CryptoCompare HTTP ${res.status}`);
-          const data2 = await res.json();
-          console.log("CryptoCompare raw data:", data2);
-          usd = data2?.USD;
-        }
-
+        console.log("Price data:", data);
+        const usd = data?.USD;
         if (!usd) throw new Error("No USD price returned.");
-        console.log("Final XRP price (USD):", usd);
         setXrpUsd(Number(usd));
         setPriceErr("");
       } catch (e) {
@@ -132,13 +109,12 @@ export default function App() {
         setXrpUsd(null);
       }
     };
-
     getPrice();
     const id = setInterval(getPrice, 60_000);
     return () => clearInterval(id);
   }, []);
 
-  // 🧮 Calculations
+  // calculations
   const annualYieldXrp = useMemo(
     () => (poolXrpRaw ? poolXrpRaw * FIXED_APY : 0),
     [poolXrpRaw]
@@ -168,7 +144,6 @@ export default function App() {
       ? n.toLocaleString(undefined, { maximumFractionDigits: 0 })
       : n.toLocaleString(undefined, { maximumFractionDigits: max });
 
-  // 🖥️ Render
   return (
     <div className="min-h-screen bg-black text-zinc-100 relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 [mask-image:radial-gradient(circle_at_center,black,transparent_70%)]">
@@ -287,5 +262,4 @@ export default function App() {
     </div>
   );
 }
-
 
