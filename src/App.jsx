@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
-const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS9WM5BOiUeFg76DdRyjyje1IS5ECvL3zU1C0Hz0yvTfb3K1a1hQdbwnqjllezBoRB34tyRJM7vqyHU/pub?output=csv";
+const SHEETS_CSV_URL = https://docs.google.com/spreadsheets/d/e/2PACX-1vS9WM5BOiUeFg76DdRyjyje1IS5ECvL3zU1C0Hz0yvTfb3K1a1hQdbwnqjllezBoRB34tyRJM7vqyHU/pub?output=csv
+
 const CSV_VALUE_INDEX = 0;
 const FIXED_APY = 0.04;
 const COINGECKO_PRICE_URL = "https://api.coingecko.com/api/v3/simple/price?ids=ripple&vs_currencies=usd";
