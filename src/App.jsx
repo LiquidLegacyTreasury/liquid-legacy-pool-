@@ -8,13 +8,8 @@ const SHEETS_CSV_URL =
 const CSV_VALUE_INDEX = 0;
 const FIXED_APY = 0.04;
 
-// 💰 Primary + fallback price URLs
-const COINGECKO_PROXY_URL =
-  "https://api.allorigins.win/raw?url=" +
-  encodeURIComponent(
-    "https://api.coingecko.com/api/v3/simple/price?ids=ripple&vs_currencies=usd"
-  );
-
+// 💰 RippleFox + fallback
+const RIPPLEFOX_URL = "https://api.ripplefox.com/v1/ticker/xrpusd";
 const CRYPTOCOMPARE_URL =
   "https://min-api.cryptocompare.com/data/price?fsym=XRP&tsyms=USD";
 
@@ -101,19 +96,19 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // 💵 Fetch XRP→USD live price (with fallback)
+  // 💵 Fetch XRP→USD live price (RippleFox + fallback)
   useEffect(() => {
     const getPrice = async () => {
       try {
-        // Try CoinGecko (via proxy)
-        let res = await fetch(COINGECKO_PROXY_URL, { cache: "no-store" });
-        if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+        // Primary: RippleFox
+        let res = await fetch(RIPPLEFOX_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`RippleFox HTTP ${res.status}`);
         let data = await res.json();
-        let usd = data?.ripple?.usd;
+        let usd = Number(data?.price);
 
-        // Fallback to CryptoCompare if CoinGecko fails
-        if (!usd) {
-          console.warn("CoinGecko failed, trying CryptoCompare...");
+        // Fallback to CryptoCompare
+        if (!usd || isNaN(usd)) {
+          console.warn("RippleFox failed, trying CryptoCompare...");
           res = await fetch(CRYPTOCOMPARE_URL, { cache: "no-store" });
           if (!res.ok) throw new Error(`CryptoCompare HTTP ${res.status}`);
           data = await res.json();
@@ -121,7 +116,6 @@ export default function App() {
         }
 
         if (!usd) throw new Error("No USD price returned from any source.");
-
         setXrpUsd(Number(usd));
         setPriceErr("");
       } catch (e) {
@@ -285,3 +279,4 @@ export default function App() {
     </div>
   );
 }
+
