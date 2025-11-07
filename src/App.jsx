@@ -5,9 +5,7 @@ const SHEETS_CSV_URL =
 
 const CSV_VALUE_INDEX = 0;
 const FIXED_APY = 0.04;
-
-// 🪙 Messari endpoint (no CORS issues)
-const PRICE_URL = "https://data.messari.io/api/v1/assets/xrp/metrics/market-data";
+const PRICE_URL = "https://api.coinpaprika.com/v1/tickers/xrp-xrp";
 
 function useCountUp(target, durationMs = 800) {
   const [value, setValue] = useState(0);
@@ -57,23 +55,22 @@ export default function App() {
   const [xrpUsd, setXrpUsd] = useState(null);
   const [priceErr, setPriceErr] = useState("");
 
-  // 🔁 Fetch CSV
+  // Load sheet
   useEffect(() => {
     const fetchCsv = async () => {
       try {
-        console.log("Fetching sheet...");
-        const res = await fetch(SHEETS_CSV_URL + "&t=" + Date.now(), { cache: "no-store" });
+        const res = await fetch(SHEETS_CSV_URL + "&t=" + Date.now(), {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error(`Sheet HTTP ${res.status}`);
         const text = await res.text();
-        console.log("Sheet text (first 100):", text.slice(0, 100));
-
         const rows = text.split(/\r?\n/).filter((l) => l.trim());
         const firstLine = rows[0] || "";
         const cols = firstLine.split(",");
         const cell = (cols[CSV_VALUE_INDEX] || "").replace(/[^0-9.\-]/g, "");
         const num = Number(cell);
-        if (!Number.isFinite(num)) throw new Error("Could not parse numeric XRP amount.");
-        console.log("Parsed XRP:", num);
+        if (!Number.isFinite(num))
+          throw new Error("Could not parse numeric XRP amount.");
         setPoolXrpRaw(num);
         setSheetError("");
       } catch (e) {
@@ -87,18 +84,15 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // 💵 Fetch price from Messari
+  // Load price from CoinPaprika
   useEffect(() => {
     const getPrice = async () => {
       try {
-        console.log("Fetching price from Messari...");
         const res = await fetch(PRICE_URL, { cache: "no-store" });
         if (!res.ok) throw new Error(`Price HTTP ${res.status}`);
         const data = await res.json();
-        console.log("Messari data:", data);
-        const usd = data?.data?.market_data?.price_usd;
+        const usd = data?.quotes?.USD?.price;
         if (!usd) throw new Error("No USD price returned.");
-        console.log("Final price USD:", usd);
         setXrpUsd(Number(usd));
         setPriceErr("");
       } catch (e) {
@@ -112,12 +106,15 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // 📈 Calculations
+  // Calculations
   const annualYieldXrp = useMemo(
     () => (poolXrpRaw ? poolXrpRaw * FIXED_APY : 0),
     [poolXrpRaw]
   );
-  const monthlyYieldXrp = useMemo(() => annualYieldXrp / 12, [annualYieldXrp]);
+  const monthlyYieldXrp = useMemo(
+    () => annualYieldXrp / 12,
+    [annualYieldXrp]
+  );
 
   const animatedPool = useCountUp(poolXrpRaw || 0);
   const animatedYear = useCountUp(annualYieldXrp || 0);
@@ -177,14 +174,14 @@ export default function App() {
             label="Total Pool (XRP)"
             monospace
             value={<span className="text-yellow-400">{fmt(animatedPool, 2)} XRP</span>}
-            sub={poolUsd != null ? `≈ $${fmt(poolUsd, 0)} USD` : "USD live price loading..."}
+            sub={poolUsd != null ? `≈ $${fmt(poolUsd, 0)} USD` : "USD live price loading…"}
           />
           <Stat label="APY (fixed)" value={<span className="text-yellow-300">4.00%</span>} sub="Simple (non-compounding)" />
           <Stat
             label="Est. Annual Yield"
             monospace
             value={<span className="text-yellow-400">{fmt(animatedYear, 2)} XRP / yr</span>}
-            sub={yearUsd != null ? `≈ $${fmt(yearUsd, 0)} USD / yr` : "USD live price loading..."}
+            sub={yearUsd != null ? `≈ $${fmt(yearUsd, 0)} USD / yr` : "USD live price loading…"}
           />
           <Stat
             label="Est. Monthly Yield"
@@ -195,7 +192,7 @@ export default function App() {
         </section>
 
         <div className="mt-8 text-xs text-zinc-500">
-          * 4% APY simple calculation. For compounding: XRP × (1 + 0.04 / 12)^(12 × years) − XRP.
+          * 4 % APY simple calculation. For compounding: XRP × (1 + 0.04 / 12)^(12 × years) − XRP.
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
